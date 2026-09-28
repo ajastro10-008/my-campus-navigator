@@ -8,20 +8,22 @@
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}
-header{background:#111827;color:#fff;padding:16px}
-header h1{margin:0;font-size:22px}
-header p{margin:5px 0 0;font-size:14px;opacity:.85}
-.controls{background:#fff;padding:14px;box-shadow:0 2px 8px #0001;position:relative;z-index:10}
-select,button{width:100%;padding:12px;border-radius:9px;font-size:15px;border:1px solid #cfd5df;margin-top:8px}
+header{background:#111827;color:#fff;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{margin:0;font-size:20px}
+header p{margin:3px 0 0;font-size:13px;opacity:.85}
+.brand{min-width:0}
+.voice-badge{border:1px solid #ffffff33;background:#ffffff12;color:#fff;border-radius:999px;padding:7px 10px;font-size:12px;white-space:nowrap}
+.controls{background:#fff;padding:11px 14px;box-shadow:0 2px 8px #0001;position:relative;z-index:10}
+select,button{width:100%;padding:11px;border-radius:10px;font-size:14px;border:1px solid #cfd5df;margin-top:7px}
 button{border:0;background:#111827;color:#fff;font-weight:700;cursor:pointer}
 .secondary{background:#e9eef5;color:#172033}.danger{background:#b42318}
 button:disabled{opacity:.55}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #status{margin-top:10px;padding:10px;border-radius:8px;background:#f1f5f9;font-size:14px;line-height:1.45}
-#map{height:66vh;min-height:430px;touch-action:none}
-.info{background:#fff;padding:12px 14px;border-top:1px solid #e5e7eb}
+#map{height:68vh;min-height:430px;touch-action:none}
+.info{background:#fff;padding:10px 14px;border-top:1px solid #e5e7eb}
 .info strong{display:block;margin-bottom:5px}
 #instructions{font-size:13px;line-height:1.5;padding-left:22px}
-.maplibregl-ctrl-group button{margin-top:0}
+.maplibregl-ctrl-group button{margin-top:0}.voice-on{background:#0f766e!important;color:#fff!important}.voice-off{background:#e9eef5!important;color:#172033!important}
 @media(max-width:600px){
  .grid{grid-template-columns:1fr}
  #map{height:61vh}
@@ -29,7 +31,7 @@ button:disabled{opacity:.55}.grid{display:grid;grid-template-columns:1fr 1fr;gap
 </style>
 </head>
 <body>
-<header><h1>🧭 MY CAMPUS FIX</h1><p>Acharya Campus Navigator</p></header>
+<header><div class="brand"><h1>🧭 MY CAMPUS FIX</h1><p>Acharya Campus Navigator</p></div><div id="voiceBadge" class="voice-badge">🔇 Voice Off</div></header>
 
 <div class="controls">
 <select id="destination"><option value="">📍 Select your destination</option></select>
@@ -39,7 +41,11 @@ button:disabled{opacity:.55}.grid{display:grid;grid-template-columns:1fr 1fr;gap
 </div>
 <div class="grid">
 <button id="navBtn" onclick="navigate()">🧭 NAVIGATE</button>
-<button class="danger" onclick="clearRoute()">✕ Clear Route</button>
+<button class="danger" onclick="endNavigation()">⏹ End Navigation</button>
+</div>
+<div class="grid">
+<button id="voiceBtn" class="secondary" onclick="toggleVoice()">🔊 Enable Voice Assistance</button>
+<button class="secondary" onclick="clearRoute()">✕ Clear Route</button>
 </div>
 <div id="status">Select a destination, then tap <b>Use My Location</b>.</div>
 </div>
@@ -99,6 +105,8 @@ const markers=[];
 let userMarker=null;
 let accuracyCircle=null;
 let routeSourceAdded=false;
+let voiceEnabled=false;
+let voiceGreeted=false;
 let currentLocation=null;
 let watchId=null;
 let firstLocationFix=false;
@@ -248,6 +256,47 @@ function startWatch(){
   );
 }
 
+function speak(text){
+  if(!voiceEnabled || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang="en-IN";
+  u.rate=0.92;
+  u.pitch=0.82;
+  u.volume=1;
+  const voices=window.speechSynthesis.getVoices();
+  const preferred=voices.find(v=>/^en-IN$/i.test(v.lang)) || voices.find(v=>/^en-GB$/i.test(v.lang)) || voices.find(v=>/^en-US$/i.test(v.lang));
+  if(preferred) u.voice=preferred;
+  window.speechSynthesis.speak(u);
+}
+
+function toggleVoice(){
+  voiceEnabled=!voiceEnabled;
+  const btn=document.getElementById("voiceBtn");
+  const badge=document.getElementById("voiceBadge");
+  if(voiceEnabled){
+    btn.textContent="🔊 Voice Assistance On";
+    btn.className="voice-on";
+    badge.textContent="🔊 Voice On";
+    speak("Hello. Welcome to MY CAMPUS FIX. Acharya Campus Navigator is ready.");
+  }else{
+    btn.textContent="🔇 Enable Voice Assistance";
+    btn.className="secondary";
+    badge.textContent="🔇 Voice Off";
+    window.speechSynthesis?.cancel();
+  }
+}
+
+function greetOnFirstInteraction(){
+  if(!voiceEnabled || voiceGreeted) return;
+  voiceGreeted=true;
+  speak("Hello. Welcome to MY CAMPUS FIX. Acharya Campus Navigator is ready. How may I assist you?");
+}
+
+window.addEventListener("load",()=>{
+  if('speechSynthesis' in window) window.speechSynthesis.getVoices();
+});
+
 async function navigate(){
   const p=places.find(x=>x.id==destination.value);
 
@@ -262,6 +311,7 @@ async function navigate(){
   }
 
   navigating=true;
+  speak("Navigation initiated. Please follow the route shown on the map. I will guide you to "+p.name+".");
 
   document.getElementById("navBtn").disabled=true;
   document.getElementById("navBtn").textContent="⏳ CALCULATING...";
@@ -336,6 +386,8 @@ async function navigate(){
       "🚶 Distance: "+km.toFixed(2)+" km<br>"+
       "⏱️ About "+min+" min";
 
+    speak("Route calculated. Your destination is "+p.name+". The walk is approximately "+km.toFixed(2)+" kilometres and will take about "+min+" minutes.");
+
     (leg.maneuvers||[]).slice(0,8).forEach(x=>{
       const li=document.createElement("li");
       li.textContent=x.instruction||"Continue on the route.";
@@ -358,6 +410,22 @@ async function navigate(){
     document.getElementById("navBtn").disabled=false;
     document.getElementById("navBtn").textContent="🧭 NAVIGATE";
   }
+}
+
+function endNavigation(){
+  if(!navigating){
+    speak("Thank you for using MY CAMPUS FIX. Have a great day.");
+    statusBox.textContent="Navigation is not active.";
+    return;
+  }
+  clearRouteOnly();
+  navigating=false;
+  instructions.innerHTML="";
+  markers.forEach(x=>x.marker.getElement().style.display="block");
+  statusBox.textContent="Navigation ended. Select another destination when you are ready.";
+  document.getElementById("navBtn").disabled=false;
+  document.getElementById("navBtn").textContent="🧭 NAVIGATE";
+  speak("Navigation ended. Thank you for using MY CAMPUS FIX. Have a great day.");
 }
 
 function clearRouteOnly(){
