@@ -1,501 +1,1337 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>MY CAMPUS FIX — Acharya Campus Navigator</title>
-<link href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>MY CAMPUS FIX — Campus Navigation</title>
+
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
 <style>
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}
-header{background:#111827;color:#fff;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-header h1{margin:0;font-size:20px}
-header p{margin:3px 0 0;font-size:13px;opacity:.85}
-.brand{min-width:0}
-.voice-badge{border:1px solid #ffffff33;background:#ffffff12;color:#fff;border-radius:999px;padding:7px 10px;font-size:12px;white-space:nowrap}
-.controls{background:#fff;padding:11px 14px;box-shadow:0 2px 8px #0001;position:relative;z-index:10}
-select,button{width:100%;padding:11px;border-radius:10px;font-size:14px;border:1px solid #cfd5df;margin-top:7px}
-button{border:0;background:#111827;color:#fff;font-weight:700;cursor:pointer}
-.secondary{background:#e9eef5;color:#172033}.danger{background:#b42318}
-button:disabled{opacity:.55}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-#status{margin-top:10px;padding:10px;border-radius:8px;background:#f1f5f9;font-size:14px;line-height:1.45}
-#map{height:68vh;min-height:430px;touch-action:none}
-.info{background:#fff;padding:10px 14px;border-top:1px solid #e5e7eb}
-.info strong{display:block;margin-bottom:5px}
-#instructions{font-size:13px;line-height:1.5;padding-left:22px}
-.maplibregl-ctrl-group button{margin-top:0}.voice-on{background:#0f766e!important;color:#fff!important}.voice-off{background:#e9eef5!important;color:#172033!important}
-@media(max-width:600px){
- .grid{grid-template-columns:1fr}
- #map{height:61vh}
-}
-</style>
-</head>
-<body>
-<header><div class="brand"><h1>🧭 MY CAMPUS FIX</h1><p>Acharya Campus Navigator</p></div><div id="voiceBadge" class="voice-badge">🔇 Voice Off</div></header>
-
-<div class="controls">
-<select id="destination"><option value="">📍 Select your destination</option></select>
-<div class="grid">
-<button onclick="getLocation()">📍 Use My Location</button>
-<button class="secondary" onclick="showAllPlaces()">🗺️ Show All Places</button>
-</div>
-<div class="grid">
-<button id="navBtn" onclick="navigate()">🧭 NAVIGATE</button>
-<button class="danger" onclick="endNavigation()">⏹ End Navigation</button>
-</div>
-<div class="grid">
-<button id="voiceBtn" class="secondary" onclick="toggleVoice()">🔊 Enable Voice Assistance</button>
-<button class="secondary" onclick="clearRoute()">✕ Clear Route</button>
-</div>
-<div id="status">Select a destination, then tap <b>Use My Location</b>.</div>
-</div>
-
-<div id="map"></div>
-<div class="info">
-<strong id="selectedPlace">No destination selected</strong>
-<div id="selectedDescription">Choose a place from the destination list.</div>
-<ol id="instructions"></ol>
-</div>
-
-<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
-<script>
-const places = [{"id":1,"name":"EEE, ECE, MT Engineering Block","lat":13.08446,"lng":77.48343,"category":"Engineering","desc":"Engineering block for EEE, ECE and MT Engineering."},{"id":2,"name":"CSE Block / Computer Science & Info. Science Engineering","lat":13.08505,"lng":77.48509,"category":"Engineering","desc":"Engineering block for Computer Science and Information Science Engineering."},{"id":3,"name":"Administration Block","lat":13.08579,"lng":77.48569,"category":"Administration","desc":"Main administrative center for college offices, student services and official academic matters."},{"id":4,"name":"Polytechnic Block, Civil & Biotech Engineering / ANA Block","lat":13.08476,"lng":77.48571,"category":"Engineering","desc":"Polytechnic and engineering facilities including Civil and Biotechnology Engineering."},{"id":5,"name":"Mechanical, AI&ML & AE Engineering","lat":13.08475,"lng":77.48471,"category":"Engineering","desc":"Engineering block serving Mechanical, AI & ML and AE Engineering."},{"id":6,"name":"MBA Block Acharya","lat":13.08388,"lng":77.48402,"category":"Academic","desc":"Academic block for MBA-related activities."},{"id":7,"name":"Post Office","lat":13.0894,"lng":77.4858,"category":"Services","desc":"Post office facility on the campus."},{"id":8,"name":"Hostel — Boys","lat":13.08337,"lng":77.47985,"category":"Hostels","desc":"Boys' hostel area."},{"id":9,"name":"Hostel — Girls","lat":13.0837,"lng":77.47991,"category":"Hostels","desc":"Girls' hostel area."},{"id":10,"name":"Admission Block [CPRD]","lat":13.08549,"lng":77.48461,"category":"Administration","desc":"Admission and CPRD-related services."},{"id":11,"name":"Acharya Institute of Graduate Studies [AIGS]","lat":13.08443,"lng":77.48503,"category":"Institutes","desc":"Acharya Institute of Graduate Studies."},{"id":12,"name":"Acharya School of Architecture [ASA]","lat":13.08397,"lng":77.48405,"category":"Institutes","desc":"Acharya School of Architecture."},{"id":13,"name":"Acharya School of Design [ASD]","lat":13.08406,"lng":77.48476,"category":"Institutes","desc":"Acharya School of Design."},{"id":14,"name":"Allied Health Science Department [AHS]","lat":13.08409,"lng":77.48241,"category":"Health","desc":"Allied Health Science Department."},{"id":15,"name":"Pharmacy Department","lat":13.08454,"lng":77.48236,"category":"Health","desc":"Pharmacy Department."},{"id":16,"name":"College of Nursing","lat":13.083,"lng":77.47992,"category":"Health","desc":"College of Nursing."},{"id":17,"name":"School of Nursing","lat":13.08305,"lng":77.48023,"category":"Health","desc":"School of Nursing."},{"id":18,"name":"Institute of Physiotherapy","lat":13.08806,"lng":77.48545,"category":"Health","desc":"Institute of Physiotherapy."},{"id":19,"name":"Physiotherapy Clinic","lat":13.08873,"lng":77.48549,"category":"Health","desc":"Physiotherapy clinic."},{"id":20,"name":"Nescafe","lat":13.08498,"lng":77.48424,"category":"Food","desc":"Nescafe food and refreshment point."},{"id":21,"name":"Acharya Uniform and Stationery","lat":13.08455,"lng":77.48446,"category":"Services","desc":"Uniform and stationery facility."},{"id":22,"name":"Campus Mart","lat":13.0838,"lng":77.48355,"category":"Services","desc":"Campus shopping facility."},{"id":23,"name":"Clock Tower","lat":13.08452,"lng":77.48305,"category":"Landmarks","desc":"Clock Tower landmark."},{"id":24,"name":"Central Library","lat":13.08475,"lng":77.4839,"category":"Academic","desc":"Central Library for students and academic resources."},{"id":25,"name":"Print Stall","lat":13.08394,"lng":77.48463,"category":"Services","desc":"Printing service facility."},{"id":26,"name":"Cafeteria — Snack Lab","lat":13.08569,"lng":77.48487,"category":"Food","desc":"Snack Lab cafeteria."},{"id":27,"name":"Mini Football Court","lat":13.08506,"lng":77.48369,"category":"Sports","desc":"Mini football court."},{"id":28,"name":"Basketball Court","lat":13.0855,"lng":77.48388,"category":"Sports","desc":"Basketball court."},{"id":29,"name":"Acharya Stadium","lat":13.08557,"lng":77.48297,"category":"Sports","desc":"Acharya Stadium."},{"id":30,"name":"Acharya Victory GYM","lat":13.08612,"lng":77.48416,"category":"Sports","desc":"Acharya Victory Gym."},{"id":31,"name":"Student Affairs","lat":13.08633,"lng":77.48395,"category":"Administration","desc":"Student Affairs facility."},{"id":32,"name":"Swimming Pool","lat":13.08693,"lng":77.48353,"category":"Sports","desc":"Campus swimming pool."},{"id":33,"name":"Lake [Rain Water Harvest]","lat":13.08686,"lng":77.48275,"category":"Environment","desc":"Lake and rainwater-harvesting area."},{"id":34,"name":"Water Treatment Plant","lat":13.08721,"lng":77.48261,"category":"Services","desc":"Water treatment facility."},{"id":35,"name":"Acharya Green Forest","lat":13.08653,"lng":77.4812,"category":"Environment","desc":"Green Forest campus area."},{"id":36,"name":"Cafeteria — L7H Cafeteria","lat":13.08492,"lng":77.48211,"category":"Food","desc":"L7H cafeteria."},{"id":37,"name":"ATM","lat":13.0836,"lng":77.4842,"category":"Services","desc":"ATM facility."},{"id":38,"name":"Entry Gate — 1","lat":13.08361,"lng":77.4843,"category":"Gates","desc":"Campus entry/exit gate 1."},{"id":39,"name":"Entry Gate — 2","lat":13.08357,"lng":77.48402,"category":"Gates","desc":"Campus entry/exit gate 2."},{"id":40,"name":"Entry Gate — 3","lat":13.08549,"lng":77.48642,"category":"Gates","desc":"Campus entry/exit gate 3."},{"id":41,"name":"Entry Gate — 4","lat":13.08618,"lng":77.48643,"category":"Gates","desc":"Campus entry/exit gate 4."},{"id":42,"name":"Entry Gate — 5","lat":13.08804,"lng":77.48623,"category":"Gates","desc":"Campus entry/exit gate 5."},{"id":43,"name":"Car Parking","lat":13.08609,"lng":77.48604,"category":"Parking","desc":"Car parking area."},{"id":44,"name":"Two Wheeler Parking","lat":13.08543,"lng":77.48607,"category":"Parking","desc":"Two-wheeler parking area."},{"id":45,"name":"Main Auditorium","lat":13.08542,"lng":77.48522,"category":"Academic","desc":"Main Auditorium."}];
-
-const destination=document.getElementById("destination");
-const statusBox=document.getElementById("status");
-const selectedPlace=document.getElementById("selectedPlace");
-const selectedDescription=document.getElementById("selectedDescription");
-const instructions=document.getElementById("instructions");
-
-const map=new maplibregl.Map({
-  container:"map",
-  center:[77.4844,13.0850],
-  zoom:16.5,
-  bearing:0,
-  pitch:0,
-  maxPitch:0,
-  dragRotate:true,
-  touchZoomRotate:true,
-  touchPitch:false,
-  pitchWithRotate:false,
-  bearingSnap:0,
-  attributionControl:true,
-  style:{
-    version:8,
-    sources:{
-      osm:{
-        type:"raster",
-        tiles:[
-          "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        ],
-        tileSize:256,
-        attribution:"© OpenStreetMap contributors"
-      }
-    },
-    layers:[{id:"osm",type:"raster",source:"osm"}]
-  },
-  reduceMotion:true
-});
-
-map.addControl(new maplibregl.NavigationControl({showCompass:true,showZoom:true}),"top-right");
-
-const markers=[];
-let userMarker=null;
-let accuracyCircle=null;
-let routeSourceAdded=false;
-let voiceEnabled=false;
-let voiceGreeted=false;
-let currentLocation=null;
-let watchId=null;
-let firstLocationFix=false;
-let navigating=false;
-
-const groups={};
-places.forEach(p=>(groups[p.category]??=[]).push(p));
-Object.keys(groups).sort().forEach(cat=>{
-  const g=document.createElement("optgroup");
-  g.label=cat;
-  groups[cat].forEach(p=>{
-    const o=document.createElement("option");
-    o.value=p.id;
-    o.textContent=p.name;
-    g.appendChild(o);
-  });
-  destination.appendChild(g);
-});
-
-function makePlaceMarkers(){
-  places.forEach(p=>{
-    const el=document.createElement("div");
-    el.style.width="28px";
-    el.style.height="28px";
-    el.style.borderRadius="50%";
-    el.style.background="#111827";
-    el.style.border="3px solid white";
-    el.style.boxShadow="0 2px 8px #0006";
-    el.style.cursor="pointer";
-    el.title=p.name;
-
-    const marker=new maplibregl.Marker({element:el})
-      .setLngLat([p.lng,p.lat])
-      .setPopup(new maplibregl.Popup({offset:18}).setHTML(
-        "<b>"+esc(p.name)+"</b><br>"+esc(p.desc)+
-        "<br><br><b>Category:</b> "+esc(p.category)
-      ))
-      .addTo(map);
-
-    el.addEventListener("click",()=>{
-      destination.value=p.id;
-      updateSelected();
-    });
-
-    markers.push({place:p,marker});
-  });
-}
-
-function updateSelected(){
-  const p=places.find(x=>x.id==destination.value);
-  if(!p){
-    selectedPlace.textContent="No destination selected";
-    selectedDescription.textContent="Choose a place from the destination list.";
-    return;
-  }
-  selectedPlace.textContent="📍 "+p.name;
-  selectedDescription.textContent=p.desc+" | "+p.category;
-  if(!navigating){
-    map.easeTo({center:[p.lng,p.lat],zoom:18,duration:500});
-  }
-}
-
-destination.addEventListener("change",updateSelected);
-
-function getLocation(){
-  if(!navigator.geolocation){
-    statusBox.textContent="❌ GPS is not supported by this browser.";
-    return;
-  }
-
-  statusBox.innerHTML="📍 Requesting your location...";
-
-  navigator.geolocation.getCurrentPosition(
-    pos=>{
-      updateUser(pos,true);
-      statusBox.innerHTML="📍 Location detected. Select a destination and tap NAVIGATE.";
-      startWatch();
-    },
-    err=>{
-      statusBox.innerHTML="❌ "+locationError(err);
-    },
-    {enableHighAccuracy:true,timeout:15000,maximumAge:5000}
-  );
-}
-
-function updateUser(pos,initial=false){
-  const lat=pos.coords.latitude;
-  const lng=pos.coords.longitude;
-  const acc=pos.coords.accuracy||0;
-
-  currentLocation={lat,lng};
-
-  if(!userMarker){
-    const el=document.createElement("div");
-    el.style.width="18px";
-    el.style.height="18px";
-    el.style.borderRadius="50%";
-    el.style.background="#1677ff";
-    el.style.border="3px solid white";
-    el.style.boxShadow="0 1px 7px #0007";
-    userMarker=new maplibregl.Marker({element:el})
-      .setLngLat([lng,lat])
-      .setPopup(new maplibregl.Popup({offset:12}).setText("📍 You are here"))
-      .addTo(map);
-  }else{
-    userMarker.setLngLat([lng,lat]);
-  }
-
-  if(!accuracyCircle){
-    accuracyCircle=new maplibregl.Marker({
-      element:makeAccuracyElement(acc)
-    }).setLngLat([lng,lat]).addTo(map);
-  }else{
-    accuracyCircle.setLngLat([lng,lat]);
-    const circleEl=accuracyCircle.getElement();
-    circleEl.style.width=Math.max(20,Math.min(acc*2,180))+"px";
-    circleEl.style.height=Math.max(20,Math.min(acc*2,180))+"px";
-  }
-
-  // IMPORTANT: only the first GPS fix moves the camera.
-  // Later GPS updates never recenter the map, so manual dragging/scrolling stays smooth.
-  if(initial || !firstLocationFix){
-    firstLocationFix=true;
-    map.easeTo({center:[lng,lat],zoom:18,duration:700});
-  }
-}
-
-function makeAccuracyElement(acc){
-  const el=document.createElement("div");
-  const size=Math.max(20,Math.min(acc*2,180));
-  el.style.width=size+"px";
-  el.style.height=size+"px";
-  el.style.borderRadius="50%";
-  el.style.background="#1677ff22";
-  el.style.border="1px solid #1677ff66";
-  el.style.pointerEvents="none";
-  el.style.transform="translate(-50%,-50%)";
-  return el;
-}
-
-function startWatch(){
-  if(watchId!==null)return;
-  watchId=navigator.geolocation.watchPosition(
-    pos=>updateUser(pos,false),
-    ()=>{},
-    {enableHighAccuracy:true,maximumAge:3000,timeout:15000}
-  );
-}
-
-function speak(text){
-  if(!voiceEnabled || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang="en-IN";
-  u.rate=0.92;
-  u.pitch=0.82;
-  u.volume=1;
-  const voices=window.speechSynthesis.getVoices();
-  const preferred=voices.find(v=>/^en-IN$/i.test(v.lang)) || voices.find(v=>/^en-GB$/i.test(v.lang)) || voices.find(v=>/^en-US$/i.test(v.lang));
-  if(preferred) u.voice=preferred;
-  window.speechSynthesis.speak(u);
-}
-
-function toggleVoice(){
-  voiceEnabled=!voiceEnabled;
-  const btn=document.getElementById("voiceBtn");
-  const badge=document.getElementById("voiceBadge");
-  if(voiceEnabled){
-    btn.textContent="🔊 Voice Assistance On";
-    btn.className="voice-on";
-    badge.textContent="🔊 Voice On";
-    speak("Hello. Welcome to MY CAMPUS FIX. Acharya Campus Navigator is ready.");
-  }else{
-    btn.textContent="🔇 Enable Voice Assistance";
-    btn.className="secondary";
-    badge.textContent="🔇 Voice Off";
-    window.speechSynthesis?.cancel();
-  }
-}
-
-function greetOnFirstInteraction(){
-  if(!voiceEnabled || voiceGreeted) return;
-  voiceGreeted=true;
-  speak("Hello. Welcome to MY CAMPUS FIX. Acharya Campus Navigator is ready. How may I assist you?");
-}
-
-window.addEventListener("load",()=>{
-  if('speechSynthesis' in window) window.speechSynthesis.getVoices();
-});
-
-async function navigate(){
-  const p=places.find(x=>x.id==destination.value);
-
-  if(!p){
-    statusBox.textContent="⚠️ Select a destination first.";
-    return;
-  }
-
-  if(!currentLocation){
-    statusBox.innerHTML="⚠️ First tap <b>Use My Location</b>.";
-    return;
-  }
-
-  navigating=true;
-  speak("Navigation initiated. Please follow the route shown on the map. I will guide you to "+p.name+".");
-
-  document.getElementById("navBtn").disabled=true;
-  document.getElementById("navBtn").textContent="⏳ CALCULATING...";
-  instructions.innerHTML="";
-  clearRouteOnly();
-
-  // Hide every normal place marker. Only the selected destination remains.
-  markers.forEach(x=>{
-    x.marker.getElement().style.display=(x.place.id==p.id)?"block":"none";
-  });
-
-  statusBox.innerHTML="🧭 Calculating a walking route to <b>"+esc(p.name)+"</b>...";
-
-  try{
-    const body={
-      locations:[
-        {lat:currentLocation.lat,lon:currentLocation.lng,type:"break"},
-        {lat:p.lat,lon:p.lng,type:"break"}
-      ],
-      costing:"pedestrian",
-      units:"kilometers",
-      directions_options:{units:"kilometers"}
-    };
-
-    const r=await fetch(
-      "https://valhalla1.openstreetmap.de/route",
-      {
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "X-Client-Id":"my-campus-fix-campus-navigator"
-        },
-        body:JSON.stringify(body)
-      }
-    );
-
-    if(!r.ok)throw new Error("Routing server HTTP "+r.status);
-
-    const d=await r.json();
-
-    if(!d.trip?.legs?.length)throw new Error("No walking route was returned.");
-
-    const leg=d.trip.legs[0];
-    const pts=decode6(leg.shape);
-
-    map.addSource("walking-route",{
-      type:"geojson",
-      data:{
-        type:"Feature",
-        geometry:{type:"LineString",coordinates:pts.map(x=>[x[1],x[0]])}
-      }
-    });
-
-    map.addLayer({
-      id:"walking-route-line",
-      type:"line",
-      source:"walking-route",
-      paint:{
-        "line-color":"#1677ff",
-        "line-width":6,
-        "line-opacity":0.9
-      }
-    });
-
-    routeSourceAdded=true;
-
-    const km=Number(d.trip.summary.length||0);
-    const min=Math.round(Number(d.trip.summary.time||0)/60);
-
-    statusBox.innerHTML=
-      "🧭 <b>"+esc(p.name)+"</b><br>"+
-      "🚶 Distance: "+km.toFixed(2)+" km<br>"+
-      "⏱️ About "+min+" min";
-
-    speak("Route calculated. Your destination is "+p.name+". The walk is approximately "+km.toFixed(2)+" kilometres and will take about "+min+" minutes.");
-
-    (leg.maneuvers||[]).slice(0,8).forEach(x=>{
-      const li=document.createElement("li");
-      li.textContent=x.instruction||"Continue on the route.";
-      instructions.appendChild(li);
-    });
-
-    if(pts.length){
-      const bounds=new maplibregl.LngLatBounds();
-      pts.forEach(x=>bounds.extend([x[1],x[0]]));
-      map.fitBounds(bounds,{padding:70,duration:600});
+    * {
+        box-sizing: border-box;
     }
 
-  }catch(e){
-    console.error(e);
-    statusBox.innerHTML=
-      "❌ Route could not be calculated.<br>"+
-      "Check internet connection and try again.<br>"+
-      "<small>"+esc(e.message)+"</small>";
-  }finally{
-    document.getElementById("navBtn").disabled=false;
-    document.getElementById("navBtn").textContent="🧭 NAVIGATE";
-  }
-}
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+    }
 
-function endNavigation(){
-  if(!navigating){
-    speak("Thank you for using MY CAMPUS FIX. Have a great day.");
-    statusBox.textContent="Navigation is not active.";
-    return;
-  }
-  clearRouteOnly();
-  navigating=false;
-  instructions.innerHTML="";
-  markers.forEach(x=>x.marker.getElement().style.display="block");
-  statusBox.textContent="Navigation ended. Select another destination when you are ready.";
-  document.getElementById("navBtn").disabled=false;
-  document.getElementById("navBtn").textContent="🧭 NAVIGATE";
-  speak("Navigation ended. Thank you for using MY CAMPUS FIX. Have a great day.");
-}
+    #map {
+        width: 100%;
+        height: 100%;
+    }
 
-function clearRouteOnly(){
-  if(routeSourceAdded){
-    if(map.getLayer("walking-route-line"))map.removeLayer("walking-route-line");
-    if(map.getSource("walking-route"))map.removeSource("walking-route");
-    routeSourceAdded=false;
-  }
-}
+    /* TOP PANEL */
+    #topPanel {
+        position: absolute;
+        z-index: 1000;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(92%, 500px);
+        background: rgba(10, 15, 25, 0.94);
+        color: white;
+        padding: 15px;
+        border-radius: 18px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+    }
 
-function clearRoute(){
-  clearRouteOnly();
-  navigating=false;
-  instructions.innerHTML="";
+    #topPanel h2 {
+        margin: 0 0 10px;
+        font-size: 19px;
+        text-align: center;
+    }
 
-  // Bring all 45 locations back.
-  markers.forEach(x=>x.marker.getElement().style.display="block");
+    #destination {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        outline: none;
+    }
 
-  statusBox.textContent="Route cleared. Select a destination and tap NAVIGATE.";
-}
+    #navigateBtn {
+        width: 100%;
+        margin-top: 9px;
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        background: #1683ff;
+        color: white;
+        font-weight: bold;
+        font-size: 15px;
+        cursor: pointer;
+    }
 
-function showAllPlaces(){
-  navigating=false;
-  clearRouteOnly();
+    /* VOICE BUTTON */
+    #voiceBtn {
+        width: 100%;
+        margin-top: 9px;
+        padding: 13px;
+        border: 2px solid #00d9ff;
+        border-radius: 10px;
+        background: rgba(0, 217, 255, 0.12);
+        color: #00eaff;
+        font-weight: bold;
+        font-size: 14px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
 
-  markers.forEach(x=>x.marker.getElement().style.display="block");
+    #voiceBtn.enabled {
+        background: #00bcd4;
+        color: white;
+        box-shadow: 0 0 15px rgba(0, 217, 255, 0.45);
+    }
 
-  if(markers.length){
-    const bounds=new maplibregl.LngLatBounds();
-    markers.forEach(x=>bounds.extend([x.place.lng,x.place.lat]));
-    map.fitBounds(bounds,{padding:45,duration:500});
-  }
+    /* CURRENT INSTRUCTION */
+    #instructionBox {
+        position: absolute;
+        z-index: 1000;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(92%, 500px);
+        background: rgba(10, 15, 25, 0.95);
+        color: white;
+        padding: 15px;
+        border-radius: 18px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+        text-align: center;
+    }
 
-  statusBox.textContent="🗺️ Showing all "+places.length+" campus destinations.";
-}
+    #instructionTitle {
+        font-size: 12px;
+        color: #00d9ff;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
 
-function locationError(e){
-  if(e.code===1)return"Location permission was denied. Allow location access and try again.";
-  if(e.code===2)return"Location is unavailable. Try again outdoors or with GPS enabled.";
-  if(e.code===3)return"Location request timed out. Try again.";
-  return"Unable to get your location.";
-}
+    #instruction {
+        font-size: 17px;
+        font-weight: bold;
+        line-height: 1.35;
+    }
 
-function decode6(s){
-  let i=0,lat=0,lng=0,out=[];
-  while(i<s.length){
-    let r=0,sh=0,b;
-    do{b=s.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5}while(b>=32);
-    lat+=r&1?~(r>>1):r>>1;
-    r=0;sh=0;
-    do{b=s.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5}while(b>=32);
-    lng+=r&1?~(r>>1):r>>1;
-    out.push([lat/1e6,lng/1e6]);
-  }
-  return out;
-}
+    #distance {
+        margin-top: 7px;
+        font-size: 13px;
+        color: #bbb;
+    }
 
-function esc(v){
-  return String(v)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
+    /* JARVIS STATUS */
+    #voiceStatus {
+        margin-top: 6px;
+        text-align: center;
+        font-size: 11px;
+        color: #9aa;
+    }
 
-map.on("load",()=>{
-  makePlaceMarkers();
-  showAllPlaces();
+    .leaflet-control-attribution {
+        font-size: 9px;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<div id="topPanel">
+
+    <h2>🧭 MY CAMPUS FIX</h2>
+
+    <select id="destination">
+        <option value="">Select your destination</option>
+
+        <option value="13.08446,77.48343">
+            EEE / ECE / MT Engineering Block
+        </option>
+
+        <option value="13.08505,77.48509">
+            CSE Block
+        </option>
+
+        <option value="13.08579,77.48569">
+            Administration Block
+        </option>
+
+        <option value="13.08476,77.48571">
+            Polytechnic / Civil / Biotech / ANA Block
+        </option>
+
+        <option value="13.08475,77.48471">
+            Mechanical / AI&ML / AE Engineering
+        </option>
+
+        <option value="13.08388,77.48402">
+            MBA Block
+        </option>
+
+        <option value="13.0894,77.4858">
+            Post Office
+        </option>
+
+        <option value="13.08337,77.47985">
+            Boys Hostel
+        </option>
+
+        <option value="13.0837,77.47991">
+            Girls Hostel
+        </option>
+
+        <option value="13.08549,77.48500">
+            Admission Block / CPRD
+        </option>
+    </select>
+
+    <button id="navigateBtn">
+        🚀 START NAVIGATION
+    </button>
+
+    <button id="voiceBtn">
+        🔊 ENABLE VOICE ASSISTANCE
+    </button>
+
+    <div id="voiceStatus">
+        Voice assistance is currently OFF
+    </div>
+
+</div>
+
+<div id="instructionBox">
+
+    <div id="instructionTitle">
+        NAVIGATION INSTRUCTION
+    </div>
+
+    <div id="instruction">
+        Select a destination to begin.
+    </div>
+
+    <div id="distance"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+/* =========================================================
+   MAP
+========================================================= */
+
+const map = L.map("map", {
+    zoomControl: true,
+    dragging: true,
+    scrollWheelZoom: true,
+    doubleClickZoom: true,
+    touchZoom: true
+}).setView([13.0848, 77.4847], 16);
+
+L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+        maxZoom: 20,
+        attribution: "&copy; OpenStreetMap contributors"
+    }
+).addTo(map);
+
+
+/* =========================================================
+   CAMPUS PLACES
+========================================================= */
+
+const places = [
+    {
+        name: "EEE / ECE / MT Engineering Block",
+        lat: 13.08446,
+        lng: 77.48343
+    },
+
+    {
+        name: "CSE Block",
+        lat: 13.08505,
+        lng: 77.48509
+    },
+
+    {
+        name: "Administration Block",
+        lat: 13.08579,
+        lng: 77.48569
+    },
+
+    {
+        name: "Polytechnic / Civil / Biotech / ANA Block",
+        lat: 13.08476,
+        lng: 77.48571
+    },
+
+    {
+        name: "Mechanical / AI&ML / AE Engineering",
+        lat: 13.08475,
+        lng: 77.48471
+    },
+
+    {
+        name: "MBA Block",
+        lat: 13.08388,
+        lng: 77.48402
+    },
+
+    {
+        name: "Post Office",
+        lat: 13.0894,
+        lng: 77.4858
+    },
+
+    {
+        name: "Boys Hostel",
+        lat: 13.08337,
+        lng: 77.47985
+    },
+
+    {
+        name: "Girls Hostel",
+        lat: 13.0837,
+        lng: 77.47991
+    },
+
+    {
+        name: "Admission Block / CPRD",
+        lat: 13.08549,
+        lng: 77.48500
+    }
+];
+
+
+/* =========================================================
+   MARKERS
+========================================================= */
+
+const markerLayer = L.layerGroup().addTo(map);
+
+places.forEach(place => {
+
+    const marker = L.marker([
+        place.lat,
+        place.lng
+    ]);
+
+    marker.bindPopup(
+        `<b>${place.name}</b>`
+    );
+
+    marker.addTo(markerLayer);
+
 });
+
+
+/* =========================================================
+   USER LOCATION
+========================================================= */
+
+let userMarker = null;
+let userLocation = null;
+
+navigator.geolocation.watchPosition(
+
+    position => {
+
+        userLocation = [
+            position.coords.latitude,
+            position.coords.longitude
+        ];
+
+        if (!userMarker) {
+
+            userMarker = L.circleMarker(
+                userLocation,
+                {
+                    radius: 8,
+                    color: "#1683ff",
+                    fillColor: "#1683ff",
+                    fillOpacity: 1
+                }
+            ).addTo(map);
+
+        } else {
+
+            userMarker.setLatLng(userLocation);
+
+        }
+
+    },
+
+    error => {
+
+        console.log(
+            "Location error:",
+            error.message
+        );
+
+    },
+
+    {
+        enableHighAccuracy: true,
+        maximumAge: 2000,
+        timeout: 10000
+    }
+
+);
+
+
+/* =========================================================
+   NAVIGATION VARIABLES
+========================================================= */
+
+let routeLine = null;
+
+let destinationPoint = null;
+
+let navigationActive = false;
+
+let currentInstructionIndex = 0;
+
+let navigationSteps = [];
+
+let voiceEnabled = false;
+
+let lastSpokenInstruction = "";
+
+
+/* =========================================================
+   VOICE SYSTEM
+========================================================= */
+
+const voiceBtn =
+    document.getElementById("voiceBtn");
+
+const voiceStatus =
+    document.getElementById("voiceStatus");
+
+
+/*
+    Find a deeper / male sounding voice
+*/
+
+function getMaleVoice() {
+
+    const voices =
+        window.speechSynthesis.getVoices();
+
+    if (!voices.length) {
+        return null;
+    }
+
+    const preferredNames = [
+
+        "Google UK English Male",
+
+        "Google US English",
+
+        "Microsoft David",
+
+        "Microsoft Mark",
+
+        "Daniel",
+
+        "Alex",
+
+        "Fred"
+
+    ];
+
+    for (const name of preferredNames) {
+
+        const found =
+            voices.find(
+                voice =>
+                    voice.name
+                    .toLowerCase()
+                    .includes(name.toLowerCase())
+            );
+
+        if (found) {
+            return found;
+        }
+
+    }
+
+    /*
+       Fallback to an English voice
+    */
+
+    return voices.find(
+        voice =>
+            voice.lang &&
+            voice.lang.toLowerCase().startsWith("en")
+    ) || voices[0];
+
+}
+
+
+/*
+    JARVIS-style speech
+*/
+
+function speak(text, force = false) {
+
+    if (!voiceEnabled && !force) {
+        return;
+    }
+
+    if (!text) {
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const speech =
+        new SpeechSynthesisUtterance(text);
+
+    const selectedVoice =
+        getMaleVoice();
+
+    if (selectedVoice) {
+        speech.voice = selectedVoice;
+    }
+
+    speech.lang = "en-US";
+
+    /*
+       Deeper / controlled voice effect
+    */
+
+    speech.pitch = 0.72;
+
+    speech.rate = 0.92;
+
+    speech.volume = 1.0;
+
+    window.speechSynthesis.speak(speech);
+
+}
+
+
+/*
+    Load voices when browser makes them available
+*/
+
+window.speechSynthesis.onvoiceschanged =
+    function() {
+
+        getMaleVoice();
+
+    };
+
+
+/* =========================================================
+   VOICE BUTTON
+========================================================= */
+
+voiceBtn.addEventListener(
+    "click",
+    function() {
+
+        voiceEnabled =
+            !voiceEnabled;
+
+        if (voiceEnabled) {
+
+            voiceBtn.classList.add(
+                "enabled"
+            );
+
+            voiceBtn.innerHTML =
+                "🔇 DISABLE VOICE ASSISTANCE";
+
+            voiceStatus.innerHTML =
+                "JARVIS voice assistance is ACTIVE";
+
+            /*
+                Greeting
+            */
+
+            speak(
+                "Hello. Welcome to My Campus Fix. Voice assistance is now enabled. I will guide you through every turn."
+            );
+
+        } else {
+
+            voiceBtn.classList.remove(
+                "enabled"
+            );
+
+            voiceBtn.innerHTML =
+                "🔊 ENABLE VOICE ASSISTANCE";
+
+            voiceStatus.innerHTML =
+                "Voice assistance is currently OFF";
+
+            window.speechSynthesis.cancel();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   DISTANCE FUNCTION
+========================================================= */
+
+function calculateDistance(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+) {
+
+    const R = 6371000;
+
+    const p1 =
+        lat1 * Math.PI / 180;
+
+    const p2 =
+        lat2 * Math.PI / 180;
+
+    const dLat =
+        (lat2 - lat1)
+        * Math.PI / 180;
+
+    const dLon =
+        (lon2 - lon1)
+        * Math.PI / 180;
+
+    const a =
+        Math.sin(dLat / 2) *
+        Math.sin(dLat / 2) +
+
+        Math.cos(p1) *
+        Math.cos(p2) *
+
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+
+    const c =
+        2 *
+        Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1 - a)
+        );
+
+    return R * c;
+
+}
+
+
+/* =========================================================
+   BEARING
+========================================================= */
+
+function getBearing(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+) {
+
+    const y =
+        Math.sin(
+            (lon2 - lon1)
+            * Math.PI / 180
+        )
+        *
+        Math.cos(
+            lat2 * Math.PI / 180
+        );
+
+    const x =
+        Math.cos(
+            lat1 * Math.PI / 180
+        )
+        *
+        Math.sin(
+            lat2 * Math.PI / 180
+        )
+        -
+        Math.sin(
+            lat1 * Math.PI / 180
+        )
+        *
+        Math.cos(
+            lat2 * Math.PI / 180
+        )
+        *
+        Math.cos(
+            (lon2 - lon1)
+            * Math.PI / 180
+        );
+
+    const bearing =
+        Math.atan2(y, x)
+        * 180 / Math.PI;
+
+    return (
+        bearing + 360
+    ) % 360;
+
+}
+
+
+/* =========================================================
+   DIRECTION NAME
+========================================================= */
+
+function directionName(
+    bearing
+) {
+
+    if (
+        bearing >= 337.5 ||
+        bearing < 22.5
+    ) {
+        return "north";
+    }
+
+    if (bearing < 67.5) {
+        return "northeast";
+    }
+
+    if (bearing < 112.5) {
+        return "east";
+    }
+
+    if (bearing < 157.5) {
+        return "southeast";
+    }
+
+    if (bearing < 202.5) {
+        return "south";
+    }
+
+    if (bearing < 247.5) {
+        return "southwest";
+    }
+
+    if (bearing < 292.5) {
+        return "west";
+    }
+
+    return "northwest";
+
+}
+
+
+/* =========================================================
+   START NAVIGATION
+========================================================= */
+
+document
+.getElementById("navigateBtn")
+.addEventListener(
+    "click",
+    startNavigation
+);
+
+
+function startNavigation() {
+
+    const value =
+        document
+        .getElementById("destination")
+        .value;
+
+    if (!value) {
+
+        alert(
+            "Please select a destination."
+        );
+
+        return;
+    }
+
+
+    if (!userLocation) {
+
+        alert(
+            "Your current location is not available yet. Please allow location access and try again."
+        );
+
+        return;
+    }
+
+
+    const [lat, lng] =
+        value.split(",")
+        .map(Number);
+
+
+    destinationPoint = {
+        lat: lat,
+        lng: lng
+    };
+
+
+    navigationActive = true;
+
+    currentInstructionIndex = 0;
+
+
+    /*
+       Remove old route
+    */
+
+    if (routeLine) {
+
+        map.removeLayer(
+            routeLine
+        );
+
+    }
+
+
+    /*
+       Hide other place markers
+       during navigation
+    */
+
+    markerLayer.clearLayers();
+
+
+    /*
+       Draw route
+    */
+
+    routeLine =
+        L.polyline(
+
+            [
+                userLocation,
+
+                [
+                    destinationPoint.lat,
+                    destinationPoint.lng
+                ]
+
+            ],
+
+            {
+                weight: 7,
+                opacity: 0.9
+            }
+
+        ).addTo(map);
+
+
+    /*
+       Destination marker
+    */
+
+    L.marker(
+        [
+            destinationPoint.lat,
+            destinationPoint.lng
+        ]
+    )
+    .bindPopup(
+        "<b>Destination</b>"
+    )
+    .addTo(map);
+
+
+    /*
+       Fit route
+    */
+
+    map.fitBounds(
+        routeLine.getBounds(),
+        {
+            padding: [50, 50]
+        }
+    );
+
+
+    /*
+       Create navigation instructions
+    */
+
+    createNavigationInstructions();
+
+
+    /*
+       Announce first instruction
+    */
+
+    if (voiceEnabled) {
+
+        speak(
+            "Navigation started. " +
+            navigationSteps[0]
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   CREATE NAVIGATION INSTRUCTIONS
+========================================================= */
+
+function createNavigationInstructions() {
+
+    navigationSteps = [];
+
+
+    const distance =
+        calculateDistance(
+
+            userLocation[0],
+            userLocation[1],
+
+            destinationPoint.lat,
+            destinationPoint.lng
+
+        );
+
+
+    const bearing =
+        getBearing(
+
+            userLocation[0],
+            userLocation[1],
+
+            destinationPoint.lat,
+            destinationPoint.lng
+
+        );
+
+
+    const direction =
+        directionName(
+            bearing
+        );
+
+
+    let distanceText;
+
+
+    if (distance < 1000) {
+
+        distanceText =
+            Math.round(distance)
+            + " meters";
+
+    } else {
+
+        distanceText =
+            (distance / 1000)
+            .toFixed(1)
+            + " kilometers";
+
+    }
+
+
+    navigationSteps.push(
+
+        "Head " +
+        direction +
+        " for approximately " +
+        distanceText +
+        " toward your destination."
+
+    );
+
+
+    navigationSteps.push(
+
+        "Continue straight toward " +
+        getDestinationName() +
+        "."
+
+    );
+
+
+    navigationSteps.push(
+
+        "You are approaching your destination."
+
+    );
+
+
+    navigationSteps.push(
+
+        "You have arrived at " +
+        getDestinationName() +
+        "."
+    );
+
+
+    showInstruction(0);
+
+}
+
+
+/* =========================================================
+   DESTINATION NAME
+========================================================= */
+
+function getDestinationName() {
+
+    const select =
+        document
+        .getElementById(
+            "destination"
+        );
+
+    return select.options[
+        select.selectedIndex
+    ].text;
+
+}
+
+
+/* =========================================================
+   SHOW INSTRUCTION
+========================================================= */
+
+function showInstruction(index) {
+
+    if (
+        !navigationSteps[index]
+    ) {
+        return;
+    }
+
+
+    currentInstructionIndex =
+        index;
+
+
+    document
+    .getElementById(
+        "instruction"
+    )
+    .innerHTML =
+        navigationSteps[index];
+
+
+    if (index === 0) {
+
+        document
+        .getElementById(
+            "instructionTitle"
+        )
+        .innerHTML =
+            "START NAVIGATION";
+
+    } else if (
+        index === navigationSteps.length - 1
+    ) {
+
+        document
+        .getElementById(
+            "instructionTitle"
+        )
+        .innerHTML =
+            "DESTINATION REACHED";
+
+    } else {
+
+        document
+        .getElementById(
+            "instructionTitle"
+        )
+        .innerHTML =
+            "NEXT INSTRUCTION";
+
+    }
+
+
+    /*
+       Speak only if it changed
+    */
+
+    if (
+        voiceEnabled &&
+        lastSpokenInstruction
+        !== navigationSteps[index]
+    ) {
+
+        lastSpokenInstruction =
+            navigationSteps[index];
+
+        speak(
+            navigationSteps[index]
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   UPDATE NAVIGATION
+========================================================= */
+
+function updateNavigation() {
+
+    if (
+        !navigationActive ||
+        !userLocation ||
+        !destinationPoint
+    ) {
+        return;
+    }
+
+
+    const distance =
+        calculateDistance(
+
+            userLocation[0],
+            userLocation[1],
+
+            destinationPoint.lat,
+            destinationPoint.lng
+
+        );
+
+
+    /*
+       Update route
+    */
+
+    if (routeLine) {
+
+        routeLine.setLatLngs(
+
+            [
+                userLocation,
+
+                [
+                    destinationPoint.lat,
+                    destinationPoint.lng
+                ]
+
+            ]
+
+        );
+
+    }
+
+
+    /*
+       Update distance
+    */
+
+    let distanceText;
+
+
+    if (distance < 1000) {
+
+        distanceText =
+            Math.round(distance)
+            + " m remaining";
+
+    } else {
+
+        distanceText =
+            (distance / 1000)
+            .toFixed(1)
+            + " km remaining";
+
+    }
+
+
+    document
+    .getElementById(
+        "distance"
+    )
+    .innerHTML =
+        distanceText;
+
+
+    /*
+       Destination reached
+    */
+
+    if (distance <= 15) {
+
+        navigationActive = false;
+
+        showInstruction(
+            navigationSteps.length - 1
+        );
+
+        if (voiceEnabled) {
+
+            speak(
+                "You have arrived at " +
+                getDestinationName() +
+                ". Navigation complete."
+            );
+
+        }
+
+        return;
+
+    }
+
+
+    /*
+       Progress instructions
+    */
+
+    if (distance <= 50) {
+
+        showInstruction(2);
+
+    } else if (distance <= 150) {
+
+        showInstruction(1);
+
+    } else {
+
+        showInstruction(0);
+
+    }
+
+}
+
+
+/* =========================================================
+   LOCATION UPDATE
+========================================================= */
+
+navigator.geolocation.watchPosition(
+
+    position => {
+
+        userLocation = [
+
+            position.coords.latitude,
+
+            position.coords.longitude
+
+        ];
+
+
+        if (userMarker) {
+
+            userMarker.setLatLng(
+                userLocation
+            );
+
+        }
+
+
+        updateNavigation();
+
+    },
+
+    error => {
+
+        console.log(
+            "Navigation location error:",
+            error
+        );
+
+    },
+
+    {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
+    }
+
+);
+
+
+/* =========================================================
+   MAP MOVEMENT FIX
+========================================================= */
+
+let mapMoving = false;
+
+
+map.on(
+    "movestart",
+    function() {
+
+        mapMoving = true;
+
+    }
+);
+
+
+map.on(
+    "moveend",
+    function() {
+
+        mapMoving = false;
+
+    }
+);
+
+
+/*
+   Prevent unnecessary automatic
+   movement while user is manually
+   scrolling/dragging.
+*/
+
+setInterval(
+    function() {
+
+        if (
+            navigationActive &&
+            !mapMoving
+        ) {
+
+            updateNavigation();
+
+        }
+
+    },
+    3000
+);
+
+
+/* =========================================================
+   INITIAL GREETING
+========================================================= */
+
+window.addEventListener(
+    "load",
+    function() {
+
+        /*
+           Do NOT automatically speak.
+           Browser security usually requires
+           a user interaction first.
+
+           The greeting is spoken when the
+           user presses ENABLE VOICE ASSISTANCE.
+        */
+
+        console.log(
+            "MY CAMPUS FIX navigation loaded."
+        );
+
+    }
+);
+
 </script>
+
 </body>
 </html>
