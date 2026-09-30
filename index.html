@@ -262,45 +262,93 @@ function startWatch(){
   );
 }
 
-function getAssistantVoice(){
-  if(!('speechSynthesis' in window)) return null;
-  const voices=window.speechSynthesis.getVoices();
+let selectedAssistantVoice=null;
 
-  // Prefer a naturally deeper male English voice when the device provides one.
-  const preferred=[
-    "Microsoft David", "Microsoft George", "Microsoft Ryan",
-    "Microsoft Mark", "Google UK English Male", "Google US English Male",
-    "Daniel", "Alex", "Fred"
+function loadAssistantVoice(){
+  if(!('speechSynthesis' in window)) return null;
+  const voices=window.speechSynthesis.getVoices() || [];
+  if(!voices.length) return null;
+
+  // Browser voices are device-dependent. We deliberately avoid an extreme
+  // pitch because Android/iOS can make low-pitched voices sound distorted.
+  const preferredExact=[
+    'Daniel',
+    'Google UK English Male',
+    'Google US English Male',
+    'Microsoft David',
+    'Microsoft George',
+    'Microsoft Ryan',
+    'Microsoft Mark',
+    'Alex',
+    'Fred'
   ];
 
-  for(const name of preferred){
+  for(const wanted of preferredExact){
     const v=voices.find(x=>
-      x.name.toLowerCase().includes(name.toLowerCase()) && /^en/i.test(x.lang)
+      x.name.toLowerCase().includes(wanted.toLowerCase()) && /^en(-|_)/i.test(x.lang)
     );
     if(v) return v;
   }
 
-  // Browser fallback. Pitch is also lowered below for a JARVIS-like tone.
-  return voices.find(v=>/^en-GB/i.test(v.lang)) ||
-         voices.find(v=>/^en-US/i.test(v.lang)) ||
-         voices.find(v=>/^en-IN/i.test(v.lang)) ||
-         voices.find(v=>/^en/i.test(v.lang)) ||
-         null;
+  // Some phones expose only a generic Google/English voice name.
+  // Prefer English voices with a stable, natural mobile/browser profile.
+  const generic=[
+    v=>/google.*english/i.test(v.name) && /^en(-|_)/i.test(v.lang),
+    v=>/microsoft.*english/i.test(v.name) && /^en(-|_)/i.test(v.lang),
+    v=>/^en-GB/i.test(v.lang),
+    v=>/^en-US/i.test(v.lang),
+    v=>/^en-IN/i.test(v.lang),
+    v=>/^en/i.test(v.lang)
+  ];
+
+  for(const rule of generic){
+    const v=voices.find(rule);
+    if(v) return v;
+  }
+  return voices[0] || null;
+}
+
+function getAssistantVoice(){
+  if(selectedAssistantVoice) return selectedAssistantVoice;
+  selectedAssistantVoice=loadAssistantVoice();
+  return selectedAssistantVoice;
 }
 
 function speak(text){
   if(!voiceEnabled || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
+  if(!text) return;
 
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang="en-IN";
-  u.rate=0.84;
-  u.pitch=0.58;
-  u.volume=1;
+  const synth=window.speechSynthesis;
+  synth.cancel();
 
   const voice=getAssistantVoice();
+  const u=new SpeechSynthesisUtterance(String(text));
+
+  // Use the actual voice's locale instead of forcing en-IN. This is important
+  // on phones where Google/Apple voices use en-US or en-GB internally.
+  u.lang=voice && voice.lang ? voice.lang : 'en-US';
   if(voice) u.voice=voice;
-  window.speechSynthesis.speak(u);
+
+  // Natural male voice: keep the actual voice's timbre and use only a small
+  // amount of depth. Very low pitch values can create the "alien" effect on
+  // Android/iOS voices.
+  u.rate=0.88;
+  u.pitch=0.88;
+  u.volume=1;
+
+  u.onend=()=>{};
+  u.onerror=()=>{};
+
+  // A tiny delay is more reliable on mobile browsers immediately after a
+  // button tap, especially when speechSynthesis was just unlocked.
+  setTimeout(()=>{
+    if(voiceEnabled) synth.speak(u);
+  },60);
+}
+
+function refreshAssistantVoice(){
+  if(!('speechSynthesis' in window)) return;
+  selectedAssistantVoice=loadAssistantVoice();
 }
 
 function distanceMeters(a,b){
@@ -366,7 +414,12 @@ function greetOnFirstInteraction(){
 }
 
 window.addEventListener("load",()=>{
-  if('speechSynthesis' in window) window.speechSynthesis.getVoices();
+  if('speechSynthesis' in window){
+    refreshAssistantVoice();
+    window.speechSynthesis.addEventListener('voiceschanged',()=>{
+      refreshAssistantVoice();
+    });
+  }
 });
 
 async function navigate(){
