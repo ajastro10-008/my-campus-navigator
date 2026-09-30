@@ -111,6 +111,10 @@ let currentLocation=null;
 let watchId=null;
 let firstLocationFix=false;
 let navigating=false;
+let activeManeuvers=[];
+let nextManeuverIndex=0;
+let routePoints=[];
+let currentDestinationName="";
 
 const groups={};
 places.forEach(p=>(groups[p.category]??=[]).push(p));
@@ -232,6 +236,8 @@ function updateUser(pos,initial=false){
     firstLocationFix=true;
     map.easeTo({center:[lng,lat],zoom:18,duration:700});
   }
+
+  checkVoiceTurn();
 }
 
 function makeAccuracyElement(acc){
@@ -256,18 +262,84 @@ function startWatch(){
   );
 }
 
+function getAssistantVoice(){
+  if(!('speechSynthesis' in window)) return null;
+  const voices=window.speechSynthesis.getVoices();
+
+  // Prefer a naturally deeper male English voice when the device provides one.
+  const preferred=[
+    "Microsoft David", "Microsoft George", "Microsoft Ryan",
+    "Microsoft Mark", "Google UK English Male", "Google US English Male",
+    "Daniel", "Alex", "Fred"
+  ];
+
+  for(const name of preferred){
+    const v=voices.find(x=>
+      x.name.toLowerCase().includes(name.toLowerCase()) && /^en/i.test(x.lang)
+    );
+    if(v) return v;
+  }
+
+  // Browser fallback. Pitch is also lowered below for a JARVIS-like tone.
+  return voices.find(v=>/^en-GB/i.test(v.lang)) ||
+         voices.find(v=>/^en-US/i.test(v.lang)) ||
+         voices.find(v=>/^en-IN/i.test(v.lang)) ||
+         voices.find(v=>/^en/i.test(v.lang)) ||
+         null;
+}
+
 function speak(text){
   if(!voiceEnabled || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
+
   const u=new SpeechSynthesisUtterance(text);
   u.lang="en-IN";
-  u.rate=0.92;
-  u.pitch=0.82;
+  u.rate=0.84;
+  u.pitch=0.58;
   u.volume=1;
-  const voices=window.speechSynthesis.getVoices();
-  const preferred=voices.find(v=>/^en-IN$/i.test(v.lang)) || voices.find(v=>/^en-GB$/i.test(v.lang)) || voices.find(v=>/^en-US$/i.test(v.lang));
-  if(preferred) u.voice=preferred;
+
+  const voice=getAssistantVoice();
+  if(voice) u.voice=voice;
   window.speechSynthesis.speak(u);
+}
+
+function distanceMeters(a,b){
+  const R=6371000;
+  const p1=a.lat*Math.PI/180, p2=b[0]*Math.PI/180;
+  const dp=(b[0]-a.lat)*Math.PI/180;
+  const dl=(b[1]-a.lng)*Math.PI/180;
+  const x=Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function checkVoiceTurn(){
+  if(!voiceEnabled || !navigating || !currentLocation || !activeManeuvers.length || !routePoints.length) return;
+  if(nextManeuverIndex>=activeManeuvers.length) return;
+
+  const m=activeManeuvers[nextManeuverIndex];
+  const idx=Math.max(0,Math.min(Number(m.begin_shape_index||0),routePoints.length-1));
+  const d=distanceMeters(currentLocation,routePoints[idx]);
+
+  // Speak the instruction shortly before reaching each maneuver.
+  if(d<=38){
+    const instruction=(
+      m.verbal_pre_transition_instruction ||
+      m.verbal_transition_alert_instruction ||
+      m.instruction ||
+      "Continue on the route."
+    ).trim();
+
+    if(instruction) speak(instruction);
+    nextManeuverIndex++;
+
+    if(nextManeuverIndex>=activeManeuvers.length){
+      setTimeout(()=>{
+        if(navigating && voiceEnabled){
+          speak("You have arrived at "+currentDestinationName+". Navigation complete.");
+        }
+      },1800);
+    }
+  }
 }
 
 function toggleVoice(){
@@ -278,9 +350,9 @@ function toggleVoice(){
     btn.textContent="🔊 Voice Assistance On";
     btn.className="voice-on";
     badge.textContent="🔊 Voice On";
-    speak("Hello. Welcome to MY CAMPUS FIX. Acharya Campus Navigator is ready.");
+    speak("Hello. Welcome to MY CAMPUS FIX. Acharya Campus Navigator is ready. How may I assist you?");
   }else{
-    btn.textContent="🔇 Enable Voice Assistance";
+    btn.textContent="🔊 Enable Voice Assistance";
     btn.className="secondary";
     badge.textContent="🔇 Voice Off";
     window.speechSynthesis?.cancel();
@@ -311,6 +383,10 @@ async function navigate(){
   }
 
   navigating=true;
+  activeManeuvers=[];
+  nextManeuverIndex=0;
+  routePoints=[];
+  currentDestinationName=p.name;
   speak("Navigation initiated. Please follow the route shown on the map. I will guide you to "+p.name+".");
 
   document.getElementById("navBtn").disabled=true;
@@ -356,6 +432,9 @@ async function navigate(){
 
     const leg=d.trip.legs[0];
     const pts=decode6(leg.shape);
+    routePoints=pts;
+    activeManeuvers=leg.maneuvers || [];
+    nextManeuverIndex=0;
 
     map.addSource("walking-route",{
       type:"geojson",
@@ -394,6 +473,8 @@ async function navigate(){
       instructions.appendChild(li);
     });
 
+    checkVoiceTurn();
+
     if(pts.length){
       const bounds=new maplibregl.LngLatBounds();
       pts.forEach(x=>bounds.extend([x[1],x[0]]));
@@ -401,6 +482,9 @@ async function navigate(){
     }
 
   }catch(e){
+    activeManeuvers=[];
+    nextManeuverIndex=0;
+    routePoints=[];
     console.error(e);
     statusBox.innerHTML=
       "❌ Route could not be calculated.<br>"+
@@ -420,6 +504,10 @@ function endNavigation(){
   }
   clearRouteOnly();
   navigating=false;
+  activeManeuvers=[];
+  nextManeuverIndex=0;
+  routePoints=[];
+  currentDestinationName="";
   instructions.innerHTML="";
   markers.forEach(x=>x.marker.getElement().style.display="block");
   statusBox.textContent="Navigation ended. Select another destination when you are ready.";
@@ -439,6 +527,10 @@ function clearRouteOnly(){
 function clearRoute(){
   clearRouteOnly();
   navigating=false;
+  activeManeuvers=[];
+  nextManeuverIndex=0;
+  routePoints=[];
+  currentDestinationName="";
   instructions.innerHTML="";
 
   // Bring all 45 locations back.
